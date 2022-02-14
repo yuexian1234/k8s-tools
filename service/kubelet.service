@@ -1,0 +1,25 @@
+[Unit]
+Description=Kubernetes Kubelet
+Documentation=https://github.com/kubernetes/kubernetes
+After=docker.service
+Requires=docker.service
+
+[Service]
+ExecStart=/usr/local/bin/kubelet \
+  --config=/var/lib/kubelet/kubelet-config.yaml \
+  --image-pull-progress-deadline=2m \
+  --kubeconfig=/var/lib/kubelet/kubeconfig \
+  --pod-infra-container-image=registry.aliyuncs.com/google_containers/pause-amd64:3.1 \
+  --network-plugin=cni \
+  --register-node=true \
+  --v=4 \
+  --log-dir=/data/kubernetes/logs \
+  --logtostderr=false \
+  --hostname-override=192.168.149.140 \
+  --feature-gates=CSIMigration=false \
+  --fail-swap-on=false
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

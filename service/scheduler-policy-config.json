@@ -1,0 +1,16 @@
+{
+"kind" : "Policy",
+"apiVersion" : "v1",
+"extenders" : [{
+    "urlPrefix": "http://10.250.0.67:23000/scheduler",
+    "filterVerb": "predicates",
+    "prioritizeVerb": "priorities",
+    "preemptVerb": "",
+    "bindVerb": "",
+    "weight": 10,
+    "enableHttps": false,
+    "nodeCacheCapable": true,
+    "ignorable": true
+}],
+"hardPodAffinitySymmetricWeight" : 10
+}

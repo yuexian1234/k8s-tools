@@ -1,0 +1,15 @@
+[Unit]
+Description=Kubernetes Scheduler
+Documentation=https://github.com/kubernetes/kubernetes
+
+[Service]
+ExecStart=/usr/local/bin/kube-scheduler \
+  --config=/etc/kubernetes/config/kube-scheduler.yaml \
+  --v=5 \
+  --log-dir=/data/kubernetes/logs \
+  --logtostderr=false
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
