@@ -1,9 +1,11 @@
-
+## 二进制存入/usr/local/bin/
+cp /root/k8s-tools/ca/bin/cfssl* /usr/local/bin
+# apt install net-tools
+# apt install net-tools
 export node_hostname=`hostname`
 export node_ip=`ifconfig ens33 | grep -w inet | awk '{print $2}'`
 export MASTER_IP=`ifconfig ens33 | grep -w inet | awk '{print $2}'`
 export ETCD_NAME=$(hostname -s)
-
 ## 
 cat > ca-config.json <<EOF
 {
@@ -350,3 +352,147 @@ resources:
       - identity: {}
 EOF
 
+
+cd /root/k8s-tools/service
+## service文件
+sed -i "s/192.168.149.140/${MASTER_IP}/g" etcd.service
+sed -i "s/192.168.149.140/${MASTER_IP}/g" kube-apiserver.service
+sed -i "s/192.168.149.140/${MASTER_IP}/g" kubelet.service
+sed -i "s/192.168.149.140/${MASTER_IP}/g" kube-proxy.service
+sed  -i "s/worker-1/${node_ip}/g" kubelet-config.yaml
+## 启动
+
+rm -rf  /data/kubernetes/logs
+rm -rf /var/lib/kubernetes/
+rm -rf  /var/lib/kubelet
+rm -rf  /var/lib/kube-proxy
+rm -rf /etc/etcd/
+rm -rf /etc/systemd/system/
+rm -rf /etc/kubernetes/
+rm -rf /etc/kubernetes/config
+
+mkdir -p /data/kubernetes/logs
+mkdir -p /var/lib/kubernetes/
+mkdir -p  /var/lib/kubelet
+mkdir -p  /var/lib/kube-proxy
+mkdir -p /etc/etcd/
+mkdir -p /etc/systemd/system/
+mkdir -p /etc/kubernetes/
+mkdir -p  /etc/kubernetes/config
+cp /root/k8s-tools/ca/* /var/lib/kubernetes/
+cp /root/k8s-tools/ca/* /etc/etcd/
+cp /root/k8s-tools/ca/* /var/lib/kubelet/
+cp /root/k8s-tools/ca/${node_ip}.kubeconfig  /var/lib/kubelet/kubeconfig
+cp /root/k8s-tools/ca/kube-proxy.kubeconfig /var/lib/kube-proxy/kubeconfig
+cp  /root/k8s-tools/service/kubelet-config.yaml /var/lib/kubelet/kubelet-config.yaml
+cp /root/k8s-tools/service/kube-scheduler.yaml  /etc/kubernetes/config/kube-scheduler.yaml
+cp /root/k8s-tools/service/scheduler-policy-config.json /etc/kubernetes/scheduler-policy-config.json
+cp  *.service  /etc/systemd/system/
+
+## 启动docker
+mkdir -p /data/docker
+
+
+mkdir -p \
+  /opt/cni/bin \
+  /var/lib/kubelet \
+  /var/lib/kube-proxy \
+  /var/lib/kubernetes \
+  /var/run/kubernetes \
+  /etc/cni/net.d
+#systemctl stop firewalld
+#systemctl disable firewalld
+#禁用 SELinux：
+#setenforce 0
+#sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
+# 关闭swap
+swapoff -a
+
+
+## cni安装
+## 下载cni-plugins插件到/opt/cni/bin
+$ cat >/etc/cni/net.d/10-mynet.conf <<EOF
+{
+	"cniVersion": "0.2.0",
+	"name": "mynet",
+	"type": "bridge",
+	"bridge": "cni0",
+	"isGateway": true,
+	"ipMasq": true,
+	"ipam": {
+		"type": "host-local",
+		"subnet": "10.22.0.0/16",
+		"routes": [
+			{ "dst": "0.0.0.0/0" }
+		]
+	}
+}
+EOF
+
+
+echo "success"
+
+systemctl daemon-reload
+exit 0
+
+
+systemctl start docker
+
+
+systemctl start etcd
+
+systemctl enable kube-apiserver kube-controller-manager kube-scheduler kubelet   etcd docker kube-proxy
+systemctl start kube-apiserver kube-controller-manager kube-scheduler  kube-proxy
+
+## rbac
+
+cat <<EOF | kubectl apply --kubeconfig /root/k8s-tools/ca/admin.kubeconfig -f -
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: system:kube-apiserver-to-kubelet
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/proxy
+      - nodes/stats
+      - nodes/log
+      - nodes/spec
+      - nodes/metrics
+    verbs:
+      - "*"
+EOF
+
+## 
+cat <<EOF | kubectl apply --kubeconfig /root/k8s-tools/ca/admin.kubeconfig -f -
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: system:kube-apiserver
+  namespace: ""
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:kube-apiserver-to-kubelet
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: kubernetes
+EOF
+
+## 
+
+
+
+
+## flannel和dns安装
+
+
+## 报错
+##1. apt-get install iptables
+## 安装ifconfig apt install net-tools
